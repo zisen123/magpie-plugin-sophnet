@@ -99,6 +99,13 @@ function hardenResponses(text) {
   // mid-conversation 400s. Dropping it and resending the full input is
   // always safe — the input array already carries the conversation.
   delete body.previous_response_id
+  // SophNet's Go gateway strict-decodes reasoning per model and refuses
+  // "summary" on some (Kimi: json: unknown field "summary"); others (gpt)
+  // need it for reasoning display, so strip per model.
+  if (/^Kimi/i.test(String(body.model ?? "")) && isObj(body.reasoning) && "summary" in body.reasoning) {
+    const { summary: _s, ...rest } = body.reasoning
+    body.reasoning = rest
+  }
   return JSON.stringify(body)
 }
 

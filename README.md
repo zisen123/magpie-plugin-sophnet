@@ -4,8 +4,14 @@
 [OpenCode](https://opencode.ai) and [magpie](https://usemagpie.ai)。
 Provider id: `sophnet`。
 
-一把 Access Token，接 SophNet 全部编码模型；每个模型走它自己支持的协议
-wire，magpie 网关负责把任意 agent 的请求翻译过去。
+一把 Access Token，接入 SophNet 的 **13 个实测编码模型**（与本地实测表
+`~/sophnet-model-table` 一致——每个模型都有实测的速度/缓存命中/effort
+档位/价格数据）；每个模型走它自己支持的协议 wire，magpie 网关负责把任意
+agent 的请求翻译过去。
+
+> 有意不收录其余 ~120 个模型（gpt-5.2 及以下、gemini 系、qwen3.5/3.6/3.7
+> 系、doubao 系、MiniMax、Hy3、嵌入/图像/视频模型）：无实测数据，无使用
+> 计划。要加回某个模型，往 `models.mjs` 的 `MODELS` 表加一行即可。
 
 ## 登录
 
@@ -18,10 +24,8 @@ wire，magpie 网关负责把任意 agent 的请求翻译过去。
 
 | 模型族 | wire | 端点 |
 |---|---|---|
-| GPT-5.x / Kimi / DeepSeek / GLM / Qwen / MiniMax / Hunyuan 等 | OpenAI Responses | `/responses` |
-| 少数旧模型（GLM-5.x 基座等） | Chat Completions | `/chat/completions` |
-| claude-opus / sonnet / haiku | Anthropic Messages | `.../anthropic/v1/messages` |
-| gemini-* | Gemini generateContent | 尽力支持 |
+| GPT-5.x / Kimi-K3 / DeepSeek / GLM / Qwen3.8 | OpenAI Responses | `/responses` |
+| claude-opus-4-8 | Anthropic Messages | `.../anthropic/v1/messages` |
 
 Claude / Gemini 模型在 `/responses` 上返回 20004 `MODEL_NOT_SUPPORT`
 （实测），所以按 wire 分流是必需的，不是偏好。

@@ -98,12 +98,16 @@ describe("catalog", () => {
     }
   })
 
-  test("claude and gemini models are NOT on the responses wire (20004 upstream)", () => {
+  test("claude models are NOT on the responses wire (20004 upstream)", () => {
     for (const m of MODELS) {
-      if (/^(claude-|anthropic\.|gemini-)/.test(m.id)) {
+      if (/^claude-/.test(m.id)) {
         expect(m.wire === "responses").toBe(false)
       }
     }
+  })
+
+  test("catalog is the 13 measured models", () => {
+    expect(MODELS.length).toBe(13)
   })
 
   test("glm models never offer tiers GLM refuses (1210)", () => {
@@ -123,5 +127,13 @@ describe("catalog", () => {
   test("byId resolves", () => {
     expect(byId.get("gpt-5.5").wire).toBe("responses")
     expect(byId.get("claude-opus-4-8").wire).toBe("anthropic")
+  })
+})
+
+describe("hardenResponses summary strip", () => {
+  test("Kimi loses reasoning.summary, gpt keeps it", () => {
+    const mk = (model) => JSON.stringify({ model, reasoning: { effort: "high", summary: "auto" }, input: "hi" })
+    expect(JSON.parse(hardenResponses(mk("Kimi-K3"))).reasoning.summary).toBeUndefined()
+    expect(JSON.parse(hardenResponses(mk("gpt-5.5"))).reasoning.summary).toBe("auto")
   })
 })
