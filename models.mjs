@@ -34,9 +34,14 @@ const MODELS = [
   ["claude-opus-4-8", "Claude Opus 4.8", 1000000, 64000, [35.5, 177.5, 3.55], true, true],
 ].map(([id, name, context, output, cost, est, images]) => {
   // wire per measured channel support: claude-* on Anthropic Messages
-  // (20004 MODEL_NOT_SUPPORT on /responses), everything else Responses
-  const wire = id.startsWith("claude") ? "anthropic" : "responses"
-  const npm = wire === "anthropic" ? "@ai-sdk/anthropic" : "@ai-sdk/openai"
+  // (20004 MODEL_NOT_SUPPORT on /responses); Kimi-K3 on Chat Completions —
+  // measured 2026-10-12: its /responses streams end mid-reply through the
+  // plugin ("the reply ended before it was complete") while chat is
+  // stable; everything else Responses
+  const wire = id.startsWith("claude") ? "anthropic" : id === "Kimi-K3" ? "chat" : "responses"
+  const npm = wire === "anthropic" ? "@ai-sdk/anthropic"
+    : wire === "chat" ? "@ai-sdk/openai-compatible"
+    : "@ai-sdk/openai"
   const efforts = id.startsWith("GLM") || id.startsWith("glm") ? E_GLM
     : id.startsWith("gpt-") ? E_GPT
     : wire === "anthropic" ? ["low", "medium", "high", "xhigh"]
