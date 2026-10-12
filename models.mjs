@@ -22,7 +22,7 @@ const MODELS = [
   ["DeepSeek-Flash", "DeepSeek Flash", 1000000, 32000, [1, 4, 0.02], false, false],
   ["DeepSeek-V4-Flash-Vision-Exp", "DeepSeek V4 Flash Vision Exp", 1000000, 32000, [1, 4, 0.02], false, true],
   ["DeepSeek-V4-Pro-0813", "DeepSeek V4 Pro 0813", 1000000, 32000, [4.5, 13.5, 0.15], false, false],
-  ["GLM-5.3", "GLM 5.3", 1000000, 32000, [8, 28, 2], false, true],
+  ["GLM-5.3", "GLM 5.3", 1000000, 32000, [8, 28, 2], false, false],
   ["glm-5.3-flash", "GLM 5.3 Flash", 1000000, 32000, [0.8, 2.8, 0.23], false, true],
   ["glm-5.3-flashx", "GLM 5.3 FlashX", 1000000, 32000, [0.8, 2.8, 0.23], false, true],
   ["qwen3.8-flash", "Qwen3.8 Flash", 1000000, 64000, [0.8, 2.7, 0.1], false, true],
