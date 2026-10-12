@@ -1,0 +1,14 @@
+{
+  "name": "opencode-sophnet-auth",
+  "version": "0.1.0",
+  "description": "OpenCode/magpie provider plugin: SophNet (www.sophnet.com) — one API key, every model on its native wire (Responses / Chat / Anthropic / Gemini)",
+  "type": "module",
+  "main": "./index.mjs",
+  "files": ["index.mjs", "models.mjs", "README.md"],
+  "keywords": ["opencode", "opencode-plugin", "magpie", "sophnet", "sophgo"],
+  "license": "MIT",
+  "magpie": {
+    "icon": "https://www.sophnet.com/favicon.ico",
+    "maxConcurrency": 8
+  }
+}
