@@ -32,6 +32,16 @@ const MODELS = [
   ["gpt-5.4", "GPT-5.4", 922000, 128000, [17.8, 106.5, 1.77], true, true],
   ["gpt-5.3-codex", "GPT-5.3 Codex", 400000, 128000, [12.4, 99.4, 1.24], true, true],
   ["claude-opus-4-8", "Claude Opus 4.8", 1000000, 64000, [35.5, 177.5, 3.55], true, true],
+
+  // ---- next-gen (added 2026-10-12, wire-verified; prices = USD × 7.1 est) --
+  // gpt-6.x on /responses (200 verified); claude-5.x on Anthropic Messages
+  // (200 verified; /responses refuses them with 20004). gpt-6.1-sol tiers
+  // probed on sophnet: low/medium/high/xhigh/max pass, minimal 400s.
+  ["gpt-6.1-sol", "GPT-6.1 Sol", 1050000, 128000, [14.2, 71, 1.42], true, true],
+  ["gpt-6-astra", "GPT-6 Astra", 1050000, 128000, [71, 355, 7.1], true, true],
+  ["claude-fable-5-1", "Claude Fable 5.1", 1000000, 128000, [71, 355, 7.1], true, true],
+  ["claude-sonnet-5-5", "Claude Sonnet 5.5", 1000000, 128000, [14.2, 71, 1.42], true, true],
+  ["claude-opus-5-5", "Claude Opus 5.5", 1000000, 128000, [28.4, 142, 2.84], true, true],
 ].map(([id, name, context, output, cost, est, images]) => {
   // wire per measured channel support: claude-* on Anthropic Messages
   // (20004 MODEL_NOT_SUPPORT on /responses); Kimi-K3 on Chat Completions —
@@ -43,8 +53,9 @@ const MODELS = [
     : wire === "chat" ? "@ai-sdk/openai-compatible"
     : "@ai-sdk/openai"
   const efforts = id.startsWith("GLM") || id.startsWith("glm") ? E_GLM
+    : id === "gpt-6.1-sol" || id === "gpt-6-astra" ? ["low", "medium", "high", "xhigh", "max"] // probed; minimal 400
     : id.startsWith("gpt-") ? E_GPT
-    : wire === "anthropic" ? ["low", "medium", "high", "xhigh"]
+    : wire === "anthropic" ? ["low", "medium", "high", "xhigh", "max"]
     : E_ALL
   return { id, name, npm, wire, efforts, context, output, cost, est, images }
 })
