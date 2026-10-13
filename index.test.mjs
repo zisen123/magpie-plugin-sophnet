@@ -170,7 +170,8 @@ describe("rewriteAdaptiveThinking", () => {
 describe("stripContextManagement", () => {
   test("dropped for -aws/-cc ids, kept for bare", () => {
     const mk = (model) => JSON.stringify({ model, context_management: { edits: [] }, messages: [] })
-    for (const model of ["claude-opus-5-5-aws", "claude-sonnet-5-5-cc", "claude-fable-5-1-awsb"]) {
+    for (const model of ["claude-opus-5-5-aws", "claude-fable-5-1-awsb"]) {
+      // (-cc accepts context_management natively, measured 2026-10-13)
       expect(JSON.parse(_internal.stripContextManagement(mk(model))).context_management).toBeUndefined()
     }
     expect(JSON.parse(_internal.stripContextManagement(mk("claude-opus-5-5"))).context_management).toEqual({ edits: [] })

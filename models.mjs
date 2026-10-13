@@ -37,6 +37,7 @@ const MODELS = [
   ["claude-fable-5-1-aws", "Claude Fable 5.1 (AWS)", 1000000, 128000, [71, 355, 7.1], true, true],
   ["claude-sonnet-5-5-aws", "Claude Sonnet 5.5 (AWS)", 1000000, 128000, [14.2, 71, 1.42], true, true],
   ["claude-opus-5-5-aws", "Claude Opus 5.5 (AWS)", 1000000, 128000, [28.4, 142, 2.84], true, true],
+  ["claude-opus-5-5-cc", "Claude Opus 5.5 (CC)", 1000000, 128000, [28.4, 142, 2.84], true, true],
 ].map(([id, name, context, output, cost, est, images]) => {
   // wire per measured channel support: claude-* on Anthropic Messages
   // (20004 MODEL_NOT_SUPPORT on /responses); Kimi-K3 on Chat Completions —
