@@ -107,10 +107,12 @@ describe("catalog", () => {
   })
 
   test("catalog is 15 models (13 measured + 5 next-gen, minus retired gpt-5.x)", () => {
-    expect(MODELS.length).toBe(15)
+    expect(MODELS.length).toBe(13)
     expect(byId.get("gpt-5.5")).toBeUndefined()
     expect(byId.get("gpt-5.4")).toBeUndefined()
     expect(byId.get("gpt-5.3-codex")).toBeUndefined()
+    expect(byId.get("DeepSeek-V4-Pro-0813")).toBeUndefined()
+    expect(byId.get("DeepSeek-V4-Flash-Vision-Exp")).toBeUndefined()
   })
 
   test("glm models never offer tiers GLM refuses (1210)", () => {
