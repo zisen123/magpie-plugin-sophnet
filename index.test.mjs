@@ -129,7 +129,7 @@ describe("catalog", () => {
 
   test("byId resolves", () => {
     expect(byId.get("gpt-5.5").wire).toBe("responses")
-    expect(byId.get("claude-opus-4-8").wire).toBe("anthropic")
+    expect(byId.get("claude-opus-5-5-aws").wire).toBe("anthropic")
   })
 })
 
