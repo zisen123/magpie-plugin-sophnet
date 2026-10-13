@@ -164,3 +164,13 @@ describe("rewriteAdaptiveThinking", () => {
     expect(_internal.rewriteAdaptiveThinking(b)).toBe(b)
   })
 })
+
+describe("stripContextManagement", () => {
+  test("dropped for -aws/-cc ids, kept for bare", () => {
+    const mk = (model) => JSON.stringify({ model, context_management: { edits: [] }, messages: [] })
+    for (const model of ["claude-opus-5-5-aws", "claude-sonnet-5-5-cc", "claude-fable-5-1-awsb"]) {
+      expect(JSON.parse(_internal.stripContextManagement(mk(model))).context_management).toBeUndefined()
+    }
+    expect(JSON.parse(_internal.stripContextManagement(mk("claude-opus-5-5"))).context_management).toEqual({ edits: [] })
+  })
+})

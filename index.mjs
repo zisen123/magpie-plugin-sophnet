@@ -106,6 +106,20 @@ function effortForBudget(budget) {
 // *.type=adaptive and output_config.effort"). CC still sends the legacy
 // form, and magpie's passthrough relays it untouched, so the plugin rewrites
 // it here: thinking.type=adaptive + output_config.effort from the budget.
+// stripContextManagement: sophnet's -aws / -awsb / -cc claude routes are
+// Bedrock-backed and refuse context_management (CC's context editing
+// feature) with a generic "Invalid request", while the bare ids accept it.
+// The field is optional: dropped, the conversation runs without client-side
+// context editing.
+function stripContextManagement(text) {
+  let body
+  try { body = JSON.parse(text) } catch { return text }
+  if (!/-aws|-awsb|-cc$/.test(String(body.model ?? ""))) return text
+  if (body.context_management === undefined) return text
+  delete body.context_management
+  return JSON.stringify(body)
+}
+
 function rewriteAdaptiveThinking(text) {
   let body
   try { body = JSON.parse(text) } catch { return text }
@@ -189,7 +203,8 @@ export const SophnetAuthPlugin = async () => ({
           headers.delete("content-length")
         }
         if (typeof body === "string" && wirePath.endsWith("/messages")) {
-          const adapted = rewriteAdaptiveThinking(body)
+          let adapted = stripContextManagement(body)
+          adapted = rewriteAdaptiveThinking(adapted)
           if (adapted !== body) { body = adapted; headers.delete("content-length") }
         }
         const method = init?.method ?? (input instanceof Request ? input.method : "POST")
@@ -212,4 +227,4 @@ export const SophnetAuthPlugin = async () => ({
   },
 })
 
-export const _internal = { foldCombinators, strictify, hardenResponses, rewriteAdaptiveThinking, MODELS, byId }
+export const _internal = { foldCombinators, strictify, hardenResponses, rewriteAdaptiveThinking, stripContextManagement, MODELS, byId }
