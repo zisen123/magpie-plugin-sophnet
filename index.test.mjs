@@ -140,3 +140,27 @@ describe("hardenResponses summary strip", () => {
     expect(JSON.parse(hardenResponses(mk("gpt-5.5"))).reasoning.summary).toBe("auto")
   })
 })
+
+describe("rewriteAdaptiveThinking", () => {
+  const mk = (model) => JSON.stringify({ model, max_tokens: 4000, thinking: { type: "enabled", budget_tokens: 8192 }, messages: [] })
+  test("claude >= 4.6: enabled+budget -> adaptive + output_config.effort", () => {
+    for (const model of ["claude-opus-5-5", "claude-opus-5-5-aws", "claude-fable-5-1-aws", "claude-sonnet-5-5-cc"]) {
+      const out = JSON.parse(_internal.rewriteAdaptiveThinking(mk(model)))
+      expect(out.thinking.type).toBe("adaptive")
+      expect(out.output_config.effort).toBe("medium")
+    }
+  })
+  test("budget ladder maps to effort tiers", () => {
+    expect(JSON.parse(_internal.rewriteAdaptiveThinking(JSON.stringify({ model: "claude-opus-5-5", thinking: { type: "enabled", budget_tokens: 1024 } }))).output_config.effort).toBe("low")
+    expect(JSON.parse(_internal.rewriteAdaptiveThinking(JSON.stringify({ model: "claude-opus-5-5", thinking: { type: "enabled", budget_tokens: 32000 } }))).output_config.effort).toBe("max")
+  })
+  test("older claude and non-claude bodies untouched", () => {
+    expect(JSON.parse(_internal.rewriteAdaptiveThinking(mk("claude-haiku-4-5-20251001"))).thinking.type).toBe("enabled")
+    expect(JSON.parse(_internal.rewriteAdaptiveThinking(mk("claude-opus-4-5-20251101"))).thinking.type).toBe("enabled")
+    expect(JSON.parse(_internal.rewriteAdaptiveThinking(mk("gpt-5.5"))).thinking.type).toBe("enabled")
+  })
+  test("non-enabled thinking passes through", () => {
+    const b = JSON.stringify({ model: "claude-opus-5-5", thinking: { type: "adaptive" } })
+    expect(_internal.rewriteAdaptiveThinking(b)).toBe(b)
+  })
+})

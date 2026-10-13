@@ -84,6 +84,41 @@ function strictify(schema) {
 }
 
 // hardenResponses rewrites a /responses request body for SophNet's gateway.
+// claudeVersion reads a claude model id's (major, minor): false when the id
+// isn't a Claude one. claude ids on sophnet: bare, -aws, -awsb, -cc.
+function claudeVersion(model) {
+  const m = /^claude-(?:fable|haiku|opus|sonnet)-(\d+)-(\d+)/.exec(String(model ?? ""))
+  if (!m) return false
+  return { major: Number(m[1]), minor: Number(m[2]) }
+}
+
+// effortForBudget maps a legacy thinking budget to an adaptive effort tier.
+function effortForBudget(budget) {
+  if (budget <= 2048) return "low"
+  if (budget <= 8192) return "medium"
+  if (budget <= 16384) return "high"
+  if (budget <= 24576) return "xhigh"
+  return "max"
+}
+
+// rewriteAdaptiveThinking: claude >= 4.6 on sophnet refuses the legacy
+// thinking block ("requires adaptive thinking; omit thinking or use
+// *.type=adaptive and output_config.effort"). CC still sends the legacy
+// form, and magpie's passthrough relays it untouched, so the plugin rewrites
+// it here: thinking.type=adaptive + output_config.effort from the budget.
+function rewriteAdaptiveThinking(text) {
+  let body
+  try { body = JSON.parse(text) } catch { return text }
+  const th = body?.thinking
+  if (!isObj(th) || th.type !== "enabled") return text
+  const v = claudeVersion(body.model)
+  if (!v || v.major < 4 || (v.major === 4 && v.minor < 6)) return text
+  const budget = Number(th.budget_tokens) || 8192
+  body.thinking = { type: "adaptive", display: "summarized" }
+  body.output_config = { ...(isObj(body.output_config) ? body.output_config : {}), effort: effortForBudget(budget) }
+  return JSON.stringify(body)
+}
+
 function hardenResponses(text) {
   let body
   try { body = JSON.parse(text) } catch { return text }
@@ -153,6 +188,10 @@ export const SophnetAuthPlugin = async () => ({
           body = hardenResponses(body)
           headers.delete("content-length")
         }
+        if (typeof body === "string" && wirePath.endsWith("/messages")) {
+          const adapted = rewriteAdaptiveThinking(body)
+          if (adapted !== body) { body = adapted; headers.delete("content-length") }
+        }
         const method = init?.method ?? (input instanceof Request ? input.method : "POST")
         return fetch(out, { ...init, method, body, headers })
       }
@@ -173,4 +212,4 @@ export const SophnetAuthPlugin = async () => ({
   },
 })
 
-export const _internal = { foldCombinators, strictify, hardenResponses, MODELS, byId }
+export const _internal = { foldCombinators, strictify, hardenResponses, rewriteAdaptiveThinking, MODELS, byId }
