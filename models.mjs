@@ -28,9 +28,6 @@ const MODELS = [
   ["qwen3.8-flash", "Qwen3.8 Flash", 1000000, 64000, [0.8, 2.7, 0.1], false, true],
   ["qwen3.8-max-0902", "Qwen3.8 Max 0902", 1000000, 64000, [12, 36, 1.5], false, true],
   ["Kimi-K3", "Kimi K3", 1000000, 64000, [20, 100, 2], false, true],
-  ["gpt-5.5", "GPT-5.5", 1100000, 128000, [35.5, 213, 3.55], true, true],
-  ["gpt-5.4", "GPT-5.4", 922000, 128000, [17.8, 106.5, 1.77], true, true],
-  ["gpt-5.3-codex", "GPT-5.3 Codex", 400000, 128000, [12.4, 99.4, 1.24], true, true],
   ["claude-opus-4-8-aws", "Claude Opus 4.8 (AWS)", 1000000, 64000, [35.5, 177.5, 3.55], true, true],
 
   // ---- next-gen (added 2026-10-12, wire-verified; prices = USD × 7.1 est) --

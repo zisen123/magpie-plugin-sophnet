@@ -106,8 +106,11 @@ describe("catalog", () => {
     }
   })
 
-  test("catalog is 13 measured + 5 next-gen models", () => {
-    expect(MODELS.length).toBe(18)
+  test("catalog is 15 models (13 measured + 5 next-gen, minus retired gpt-5.x)", () => {
+    expect(MODELS.length).toBe(15)
+    expect(byId.get("gpt-5.5")).toBeUndefined()
+    expect(byId.get("gpt-5.4")).toBeUndefined()
+    expect(byId.get("gpt-5.3-codex")).toBeUndefined()
   })
 
   test("glm models never offer tiers GLM refuses (1210)", () => {
@@ -119,16 +122,13 @@ describe("catalog", () => {
   })
 
   test("gpt-5.x never offer max (upstream refuses it); gpt-6.x probed OK on sophnet", () => {
-    for (const m of MODELS) {
-      if (/^gpt-5\./.test(m.id)) expect(m.efforts).not.toContain("max")
-    }
     for (const id of ["gpt-6.1-sol", "gpt-6-astra"]) {
       expect(byId.get(id).efforts).toContain("max")
     }
   })
 
   test("byId resolves", () => {
-    expect(byId.get("gpt-5.5").wire).toBe("responses")
+    expect(byId.get("gpt-6.1-sol").wire).toBe("responses")
     expect(byId.get("claude-opus-5-5-aws").wire).toBe("anthropic")
   })
 })
