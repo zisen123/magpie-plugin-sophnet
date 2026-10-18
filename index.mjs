@@ -13,6 +13,7 @@
 // lenient upstreams and prevent 400 "请求参数有误" /
 // previous_response_id-not-found rounds.
 
+import { createHash } from "node:crypto"
 import { MODELS, byId, configModels } from "./models.mjs"
 
 const PROVIDER = "sophnet"
@@ -144,11 +145,23 @@ function hardenResponses(text) {
       return { ...rest, parameters: strictify(foldCombinators(t.parameters)) }
     })
   }
-  // SophNet's /responses keeps per-response state and validates a
-  // previous_response_id against (model, org): switching models or keys
-  // mid-conversation 400s. Dropping it and resending the full input is
-  // always safe — the input array already carries the conversation.
+  // SophNet 校验显式 response ID，也会根据历史工具 call_id 隐式续接。
+  // 完整历史回放时按目标模型稳定重绑 ID，避免切换模型后的 400；调用
+  // 和结果使用同一映射，不改参数、工具结果或模型返回的新工具 ID。
   delete body.previous_response_id
+  if (typeof body.model === "string" && Array.isArray(body.input)) {
+    const ids = new Map()
+    for (const item of body.input) {
+      if (!isObj(item) || !["function_call", "function_call_output"].includes(item.type)) continue
+      if (typeof item.call_id !== "string" || !item.call_id) continue
+      const id = item.call_id
+      if (!ids.has(id)) {
+        const digest = createHash("sha256").update(JSON.stringify([body.model, id])).digest("hex").slice(0, 48)
+        ids.set(id, `call_mp_${digest}`)
+      }
+      item.call_id = ids.get(id)
+    }
+  }
   // SophNet's Go gateway strict-decodes reasoning per model and refuses
   // "summary" on some (Kimi: json: unknown field "summary"); others (gpt)
   // need it for reasoning display, so strip per model.
@@ -198,6 +211,9 @@ export const SophnetAuthPlugin = async () => ({
           out = ANTHROPIC_BASE + "/v1/messages"
         }
         const wirePath = new URL(out).pathname
+        if ((wirePath.endsWith("/responses") || wirePath.endsWith("/messages")) && (body instanceof ArrayBuffer || ArrayBuffer.isView(body))) {
+          body = new TextDecoder().decode(body)
+        }
 
         if (typeof body === "string" && wirePath.endsWith("/responses")) {
           body = hardenResponses(body)
@@ -210,7 +226,7 @@ export const SophnetAuthPlugin = async () => ({
           if (adapted !== body) { body = adapted; headers.delete("content-length") }
         }
         const method = init?.method ?? (input instanceof Request ? input.method : "POST")
-        return fetch(out, { ...init, method, body, headers })
+        return fetch(out, { ...init, method, body, headers, signal: init?.signal ?? (input instanceof Request ? input.signal : undefined) })
       }
 
       return { baseURL: BASE, apiKey: key, fetch: sophnetFetch }

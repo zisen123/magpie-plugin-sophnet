@@ -39,6 +39,16 @@ Claude / Gemini 模型在 `/responses` 上返回 20004 `MODEL_NOT_SUPPORT`
 - **剥 `previous_response_id`**：SophNet 的 /responses 是有状态网关，按
   (model, org) 校验历史 response id，换模型/换 key 续会话会 400。
   请求的 input 数组本就携带完整对话，剥掉后总是安全。
+- **历史工具 ID 隔离**：仅删除 `previous_response_id` 不够，SophNet
+  还会根据历史 `call_id` 隐式续接旧 response。同一会话在工具调用后
+  切换模型，可能报 `previous_response_id model mismatch`。
+  插件按目标模型和原始 ID 确定性重映射 `function_call` 与
+  `function_call_output` 的 `call_id`，保留配对和全部历史内容。
+  不使用共享会话状态，也不改写响应中的新工具 ID；同模型重复回放
+  保持稳定，跨模型使用不同 ID。当前修复仅处理 Responses 函数工具。
+
+专项离线回归：`bun test responses-history.test.mjs`。覆盖模型切换、
+切回原模型、并行工具、重复回放及 loader 的字符串／二进制请求。
 
 ## 思考档位
 
