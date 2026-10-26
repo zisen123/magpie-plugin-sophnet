@@ -4,14 +4,23 @@
 [OpenCode](https://opencode.ai) and [magpie](https://usemagpie.ai)。
 Provider id: `sophnet`。
 
-一把 Access Token，接入 SophNet 的 **18 个模型**（13 个本地实测 + 5 个 2026-10-12 新上架的 next-gen）（与本地实测表
-`~/sophnet-model-table` 一致——每个模型都有实测的速度/缓存命中/effort
-档位/价格数据）；每个模型走它自己支持的协议 wire，magpie 网关负责把任意
-agent 的请求翻译过去。
+一把 Access Token，接入 SophNet 的 **20 个模型通道**；模型目录以
+`models.mjs` 为准。Claude Fable 5.1、Sonnet 5.5、Opus 5.5 各自组成
+`-cc` → 无后缀 → `-aws`（Fable 另有 `-awsb`）的有序备用组，客户端只展示组入口。
+价格与能力中带估计的字段仍需按各渠道实测核对。
 
 > 有意不收录其余 ~120 个模型（gpt-5.2 及以下、gemini 系、qwen3.5/3.6/3.7
 > 系、doubao 系、MiniMax、Hy3、嵌入/图像/视频模型）：无实测数据，无使用
 > 计划。要加回某个模型，往 `models.mjs` 的 `MODELS` 表加一行即可。
+
+## 安装
+
+```bash
+magpie plugin add opencode-sophnet-auth        # npm 包
+magpie plugin add ~/github-projects/magpie-plugin-sophnet   # 本地目录
+```
+
+装好后执行 `magpie plugin login sophnet` 并粘贴 Access Token。
 
 ## 登录
 
@@ -20,22 +29,83 @@ agent 的请求翻译过去。
 
 ## 模型与协议
 
-每个模型按实测声明 wire（2026-10-12 核对）：
+每个模型按精确渠道实测声明 wire（V4.1 Flash 1017 于 2026-10-20 核对）：
 
 | 模型族 | wire | 端点 |
 |---|---|---|
-| GPT-5.x / GPT-6.x / Kimi-K3 / DeepSeek / GLM / Qwen3.8 | OpenAI Responses | `/responses` |
-| claude-opus-4-8 / 5-5、claude-sonnet-5-5、claude-fable-5-1 | Anthropic Messages | `.../anthropic/v1/messages` |
+| GPT-6.x / GLM / DeepSeek-V4.1-Flash-1017 | OpenAI Responses | `/responses` |
+| kimi-k3.1-pro / kimi-k3.1-pro-highspeed | OpenAI Chat Completions | `/chat/completions` |
+| claude-fable-5-1-cc / claude-sonnet-5-5-cc / claude-opus-5-5-cc | Anthropic Messages | `.../anthropic/v1/messages` |
 
 Claude / Gemini 模型在 `/responses` 上返回 20004 `MODEL_NOT_SUPPORT`
 （实测），所以按 wire 分流是必需的，不是偏好。
 
+`DeepSeek-V4.1-Flash-1017`（2026-10-21 起作为主力通道）的官方规格经
+`api/public/model-external-info` 确认：1M
+上下文、384K 输出、text+image、Function Calling、联网搜索、思考/非思考
+双模式，价格 CNY 1/4/0.02（峰时 09:00-12:00、14:00-18:00 为 2/8/0.04）。
+直连实测：Chat / Responses / Anthropic 三协议均 200；Responses 流式与
+函数调用、`max_output_tokens=384000`、64×64 纯色图识别、
+`none/minimal/max` 等档位均通过（`none` 为 0 reasoning tokens）。注意
+模型会编造图片尺寸（问 64×64 图答 128×128/512×512），内容判断可靠但
+分辨率元信息不可信；小图配小输出预算时思考可能吃光预算导致答错。
+
+### Flash 备用通道（2026-10-23）
+
+另保留 `DeepSeek-V4.1-Flash-1017-global` 与 `DeepSeek-Flash-1017`。
+三个精确 ID 均出现在授权 `/v1/models`，Responses `low` 短请求均返回
+200/OK；公开模型介绍页只列主力 ID，未说明三者是否同模型不同上游。
+两个备用通道的窗口、输出、图片能力与价格暂沿用主力估值，完整档位
+未逐项验收。不要把短请求成功当作这些上限已经实测。
+
+本机 Magpie 另建 `group/deepseek-v4-flash`，显示名 `DeepSeek-V4-Flash`，
+按主力 → global → 旧 Flash 顺序，`routing=order`、`stays=auto`。
+旧模型和旧 Claude 子代理均保留；不设 `listed=no`，避免影响旧任务。
+普通 429 可能冷却整个 provider/key：当前请求仍可尝试后面的模型，
+但全部失败后后续请求会减少冷却成员的探测；不能保证绕过共用 key
+的整体限流，也不能在已开始输出内容后切换模型。
+
+### Claude 渠道组（2026-10-23）
+
+- `group/opus-5-5`：Claude Opus 5.5。
+- `group/sonnet-5-5`：Claude Sonnet 5.5。
+- `group/fable-5-1`：Claude Fable 5.1。
+
+每组按同家族的 `-cc` → 无后缀 → `-aws`，`routing=order`、
+`stays=auto`、`listed=no`。不混合不同 Claude 家族；单渠道作为后端
+成员保留，独立 picker 入口移除。六个新增无后缀/AWS 渠道的 Messages
+adaptive/low 短请求均 200/OK；长上下文、完整档位与工具续轮尚未验收。
+AWS 渠道由 loader 剥离 `context_management`，不能承诺与 CC 渠道
+所有能力一致。各渠道价暂沿用同家族 USD×7.1 估值。
+
+工作站客户端请求 `group/<id>`；办公机/NAS remote 请求
+`server/group/<id>`。远端 caller key 只授权组 ID，组请求内部会放行
+其成员；单渠道不再独立授权。Claude picker/白名单与子代理模型引用
+迁移到组；Grok 对应本地 catalog 键保留用于已有子代理映射，真实
+`model` 改为组并走本地 Magpie，移除该条目原 opencodex 认证头。
+
+### 在别的 magpie 上复现这些组（可选）
+
+组是 **magpie 实例配置**（`~/.config/magpie/providers.json` 的 `groups`），
+不在 npm 包里；装完插件只会得到 20 个单模型。要同样的组入口，逐条执行：
+
+```bash
+magpie group add DeepSeek-V4-Flash models=sophnet/DeepSeek-V4.1-Flash-1017,sophnet/DeepSeek-V4.1-Flash-1017-global,sophnet/DeepSeek-Flash-1017 routing=order
+magpie group add "Claude Opus 5.5"   models=sophnet/claude-opus-5-5-cc,sophnet/claude-opus-5-5,sophnet/claude-opus-5-5-aws routing=order listed=no
+magpie group add "Claude Sonnet 5.5" models=sophnet/claude-sonnet-5-5-cc,sophnet/claude-sonnet-5-5,sophnet/claude-sonnet-5-5-aws routing=order listed=no
+magpie group add "Claude Fable 5.1"  models=sophnet/claude-fable-5-1-cc,sophnet/claude-fable-5-1,sophnet/claude-fable-5-1-aws,sophnet/claude-fable-5-1-awsb routing=order listed=no
+magpie group add "Kimi K3.1 Pro"     models=sophnet/kimi-k3.1-pro,sophnet/kimi-k3.1-pro-highspeed routing=order listed=no
+```
+
+组 id 由显示名生成，执行后用 `magpie groups` 核对；与本机 id 不同时用
+`magpie group set <id> id=<想要的id>` 调整。客户端请求 `group/<id>`。
+
 ## 内建的请求加固（Responses 出口）
 
-- **工具 schema 消毒**：折叠 `oneOf/anyOf/allOf`（标量分支收敛、
-  nullable 写进 description）、每个 object 节点补
-  `properties`/`additionalProperties:false`/全量 `required`、剥掉
-  `strict` 键——对宽松上游是无操作，对严格副本防 400「请求参数有误」。
+- **工具 schema 保真**：函数工具显式设置 `strict: false`，保留原始
+  `oneOf/anyOf/allOf`、枚举、正则、可选字段及字典定义。Responses 默认
+  严格模式会改变可选字段语义，因此必须显式关闭。字符串与结构化消息
+  的联合类型保持原样，适用于 Claude Code 的 `SendMessage` / `Agent`。
 - **剥 `previous_response_id`**：SophNet 的 /responses 是有状态网关，按
   (model, org) 校验历史 response id，换模型/换 key 续会话会 400。
   请求的 input 数组本就携带完整对话，剥掉后总是安全。
@@ -47,8 +117,26 @@ Claude / Gemini 模型在 `/responses` 上返回 20004 `MODEL_NOT_SUPPORT`
   不使用共享会话状态，也不改写响应中的新工具 ID；同模型重复回放
   保持稳定，跨模型使用不同 ID。当前修复仅处理 Responses 函数工具。
 
-专项离线回归：`bun test responses-history.test.mjs`。覆盖模型切换、
-切回原模型、并行工具、重复回放及 loader 的字符串／二进制请求。
+专项离线回归（仓库内）：`bun test responses-history.test.mjs`。覆盖模型切换、
+切回原模型、并行工具、重复回放及 loader 的字符串／二进制请求。测试文件
+不随 npm 包发布，见下方「回归测试」。
+
+## 回归测试（在仓库内运行）
+
+npm 包只含运行时代码（`index.mjs`、`models.mjs`），测试文件不发布。
+需要验证时先 clone 仓库：
+
+```bash
+git clone https://github.com/zisen123/magpie-plugin-sophnet.git && cd magpie-plugin-sophnet
+bun test                                            # 离线：目录不变式、schema、loader
+SOPHNET_LIVE_TESTS=1 bun test schema.live.test.mjs  # 线上，会打真实网关
+```
+
+默认仅运行离线测试。线上验收通过本机 Magpie 的 `/v1/messages` 转译到
+SophNet，交替测试 `SendMessage` 和 `Agent` 共 10 次，间隔至少 12 秒；
+随后验证流式参数及工具结果续轮；只检查模型生成的参数，不执行工具，
+会产生少量模型费用。
+可用 `SOPHNET_TEST_GATEWAY` 和 `SOPHNET_TEST_GATEWAY_KEY` 指定测试网关。
 
 ## 思考档位
 
@@ -57,7 +145,11 @@ Claude / Gemini 模型在 `/responses` 上返回 20004 `MODEL_NOT_SUPPORT`
 - GLM 系**始终思考**：只有 `low/high/max`（发 none/minimal/medium/xhigh
   得 400「该模型始终思考」）
 - GPT 系拒 `max`，只到 `xhigh`
-- DeepSeek-V4-Flash(-0731/Vision-Exp)、Kimi-K3、qwen3.8 系全档可用
+- kimi-k3.1-pro / -highspeed 七档全可用（2026-10-25 逐档实测，`none` 为 0
+  reasoning tokens）；旧 Kimi-K3 同样全档
+- DeepSeek-V4.1-Flash-1017 声明 `none/minimal/low/medium/high/xhigh/max`
+  （2026-10-20 实测：`none` 产生 0 reasoning tokens，是真正的"不思考"档；
+  非法值返回 400，说明上游校验枚举）
 - MiniMax-M3 只有 `high`；M2.x 无档位细分
 
 ## 价格
@@ -69,8 +161,17 @@ Claude / Gemini 模型在 `/responses` 上返回 20004 `MODEL_NOT_SUPPORT`
 ## 未收录的模型
 
 嵌入（bge-m3/text-embeddings）、图像（Qwen-Image-Edit）、视频
-（Wan2.2）、语音与 `-global` 镜像不在列表里：它们不是编码对话模型。
+（Wan2.2）、语音与其余 `-global` 镜像不在列表里；Flash 1017 global
+作为编码模型的备用通道单独收录。
 SophNet 上新模型后，往 `models.mjs` 的 `MODELS` 表加一行即可。
+
+## 账号探测与失效标记（0.1.1）
+
+`provider.models` 每次按账号向 SophNet 的 `/v1/models` 查询，再与内置
+精选目录取交集：上游已下线的渠道不再出现在 picker 里。令牌被拒
+（401/403）时插件抛出 `signIn: "expired"`，magpie 会提示重新登录；
+网络失败或其他非 2xx 响应则回退到内置目录，不影响离线可用。
+`auth.usage` 的余额查询同样把 401/403 报为登录失效。
 
 ## 登录态存哪
 
@@ -83,3 +184,19 @@ SophNet 上新模型后，往 `models.mjs` 的 `MODELS` 表加一行即可。
   标注为尽力支持；claude 系 anthropic wire 已实测可用。
 - SophNet `/responses` 的档位可用性按上游副本有概率性抖动（实测同一
   档位 0–5/5 通过），档位表是 5/5 通过的保守集合。
+
+## 变更记录
+
+### 0.1.1
+
+- 移除会写请求正文到 `/tmp` 的 `SOPHNET_DEBUG` 调试残留（ESM 下还会抛
+  `require is not defined`）。
+- `provider.models` 改为按账号探测 `/v1/models`：令牌 401/403 标记为登录
+  失效，其他失败回退内置目录，结果与精选目录取交集。
+- `auth.usage` 对 401/403 返回 `signIn: "expired"`。
+- 包图标改用 SVG（`https://www.sophnet.com/logo.svg`）。
+- 描述不再写死模型数量。
+
+### 0.1.0
+
+- 首次发布：20 个模型通道，按 native wire 路由。

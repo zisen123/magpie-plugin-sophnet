@@ -1,7 +1,7 @@
 {
   "name": "opencode-sophnet-auth",
-  "version": "0.1.0",
-  "description": "OpenCode/magpie provider plugin: SophNet — the 13 measured coding models, each on its native wire (Responses / Anthropic)",
+  "version": "0.1.1",
+  "description": "SophNet provider plugin for OpenCode and magpie: a curated model catalog, each model on the wire it speaks (Responses / Chat Completions / Anthropic Messages)",
   "type": "module",
   "main": "./index.mjs",
   "files": [
@@ -18,7 +18,7 @@
   ],
   "license": "MIT",
   "magpie": {
-    "icon": "https://www.sophnet.com/favicon.ico",
+    "icon": "https://www.sophnet.com/logo.svg",
     "maxConcurrency": 8
   }
 }
