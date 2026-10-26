@@ -18,6 +18,21 @@ provider 插件。一把 Access Token 接入 20 个精选模型通道，每个�
 `BASE = https://www.sophnet.com/api/open-apis/v1`。Claude 在 `/responses`
 上确定性返回 20004 `MODEL_NOT_SUPPORT`，wire 分流是硬需求。
 
+## 分支策略
+
+- `master`：**对外脱敏版**，只保留国产模型。GitHub 默认分支，也是 npm
+  发布版。
+- `full`：**本地完整版**，含 GPT / Claude 等国外模型。本机 magpie 默认
+  加载这个分支的工作目录。
+- `rls`：与 master 同内容的别名分支，保留用于旧引用，不再单独维护。
+
+改动规则：
+
+1. 新增/修改模型或协议逻辑，先在 `full` 上验证、跑测试、本机实测；
+2. 确认后把同样的改动同步到 `master`，并按脱敏口径去掉国外模型；
+3. 发布：`git checkout master` → bump 版本 → `npm publish` → Staged Approve；
+4. 不要让 `full` 直接覆盖 `master`，也不要把 `master` merge 回 `full`。
+
 ## 结构
 
 ```
