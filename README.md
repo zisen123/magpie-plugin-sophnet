@@ -4,14 +4,13 @@
 [OpenCode](https://opencode.ai) and [magpie](https://usemagpie.ai)。
 Provider id: `sophnet`。
 
-一把 Access Token，接入 SophNet 的 **20 个模型通道**；模型目录以
-`models.mjs` 为准。Claude Fable 5.1、Sonnet 5.5、Opus 5.5 各自组成
-`-cc` → 无后缀 → `-aws`（Fable 另有 `-awsb`）的有序备用组，客户端只展示组入口。
+一把 Access Token，接入 SophNet 的 **7 个国产模型通道**；模型目录以
+`models.mjs` 为准：DeepSeek 3 条（主力 + 两条备用）、GLM 2 条、Kimi 2 条。
 价格与能力中带估计的字段仍需按各渠道实测核对。
 
-> 有意不收录其余 ~120 个模型（gpt-5.2 及以下、gemini 系、qwen3.5/3.6/3.7
-> 系、doubao 系、MiniMax、Hy3、嵌入/图像/视频模型）：无实测数据，无使用
-> 计划。要加回某个模型，往 `models.mjs` 的 `MODELS` 表加一行即可。
+> 本分支（rls）**只保留国产模型**，不含 GPT、Claude 等国外模型。其余
+> 未收录的模型（qwen 系、doubao 系、MiniMax、嵌入/图像/视频）也因无实测
+> 数据未列入。要加模型，往 `models.mjs` 的 `MODELS` 表加一行。
 
 ## 安装
 
@@ -33,12 +32,11 @@ magpie plugin add ~/github-projects/magpie-plugin-sophnet   # 本地目录
 
 | 模型族 | wire | 端点 |
 |---|---|---|
-| GPT-6.x / GLM / DeepSeek-V4.1-Flash-1017 | OpenAI Responses | `/responses` |
+| DeepSeek / GLM | OpenAI Responses | `/responses` |
 | kimi-k3.1-pro / kimi-k3.1-pro-highspeed | OpenAI Chat Completions | `/chat/completions` |
-| claude-fable-5-1-cc / claude-sonnet-5-5-cc / claude-opus-5-5-cc | Anthropic Messages | `.../anthropic/v1/messages` |
 
-Claude / Gemini 模型在 `/responses` 上返回 20004 `MODEL_NOT_SUPPORT`
-（实测），所以按 wire 分流是必需的，不是偏好。
+Kimi 沿用 chat wire：旧 Kimi-K3 的 `/responses` 会流式中途截断，新 ID
+虽实测 responses 完整，仍保持同一生产路径。
 
 `DeepSeek-V4.1-Flash-1017`（2026-10-21 起作为主力通道）的官方规格经
 `api/public/model-external-info` 确认：1M
@@ -60,41 +58,27 @@ Claude / Gemini 模型在 `/responses` 上返回 20004 `MODEL_NOT_SUPPORT`
 
 本机 Magpie 另建 `group/deepseek-v4-flash`，显示名 `DeepSeek-V4-Flash`，
 按主力 → global → 旧 Flash 顺序，`routing=order`、`stays=auto`。
-旧模型和旧 Claude 子代理均保留；不设 `listed=no`，避免影响旧任务。
+不设 `listed=no`，避免影响旧任务。
 普通 429 可能冷却整个 provider/key：当前请求仍可尝试后面的模型，
 但全部失败后后续请求会减少冷却成员的探测；不能保证绕过共用 key
 的整体限流，也不能在已开始输出内容后切换模型。
 
-### Claude 渠道组（2026-10-23）
+### Kimi 渠道组
 
-- `group/opus-5-5`：Claude Opus 5.5。
-- `group/sonnet-5-5`：Claude Sonnet 5.5。
-- `group/fable-5-1`：Claude Fable 5.1。
-
-每组按同家族的 `-cc` → 无后缀 → `-aws`，`routing=order`、
-`stays=auto`、`listed=no`。不混合不同 Claude 家族；单渠道作为后端
-成员保留，独立 picker 入口移除。六个新增无后缀/AWS 渠道的 Messages
-adaptive/low 短请求均 200/OK；长上下文、完整档位与工具续轮尚未验收。
-AWS 渠道由 loader 剥离 `context_management`，不能承诺与 CC 渠道
-所有能力一致。各渠道价暂沿用同家族 USD×7.1 估值。
+`group/kimi-k3.1-pro`：pro → highspeed，`routing=order`、`listed=no`。
 
 工作站客户端请求 `group/<id>`；办公机/NAS remote 请求
 `server/group/<id>`。远端 caller key 只授权组 ID，组请求内部会放行
-其成员；单渠道不再独立授权。Claude picker/白名单与子代理模型引用
-迁移到组；Grok 对应本地 catalog 键保留用于已有子代理映射，真实
-`model` 改为组并走本地 Magpie，移除该条目原 opencodex 认证头。
+其成员；单渠道不再独立授权。
 
 ### 在别的 magpie 上复现这些组（可选）
 
 组是 **magpie 实例配置**（`~/.config/magpie/providers.json` 的 `groups`），
-不在 npm 包里；装完插件只会得到 20 个单模型。要同样的组入口，逐条执行：
+不在 npm 包里；装完插件只会得到 7 个单模型。要同样的组入口，逐条执行：
 
 ```bash
 magpie group add DeepSeek-V4-Flash models=sophnet/DeepSeek-V4.1-Flash-1017,sophnet/DeepSeek-V4.1-Flash-1017-global,sophnet/DeepSeek-Flash-1017 routing=order
-magpie group add "Claude Opus 5.5"   models=sophnet/claude-opus-5-5-cc,sophnet/claude-opus-5-5,sophnet/claude-opus-5-5-aws routing=order listed=no
-magpie group add "Claude Sonnet 5.5" models=sophnet/claude-sonnet-5-5-cc,sophnet/claude-sonnet-5-5,sophnet/claude-sonnet-5-5-aws routing=order listed=no
-magpie group add "Claude Fable 5.1"  models=sophnet/claude-fable-5-1-cc,sophnet/claude-fable-5-1,sophnet/claude-fable-5-1-aws,sophnet/claude-fable-5-1-awsb routing=order listed=no
-magpie group add "Kimi K3.1 Pro"     models=sophnet/kimi-k3.1-pro,sophnet/kimi-k3.1-pro-highspeed routing=order listed=no
+magpie group add "Kimi K3.1 Pro"   models=sophnet/kimi-k3.1-pro,sophnet/kimi-k3.1-pro-highspeed routing=order listed=no
 ```
 
 组 id 由显示名生成，执行后用 `magpie groups` 核对；与本机 id 不同时用
@@ -144,19 +128,17 @@ SophNet，交替测试 `SendMessage` 和 `Agent` 共 10 次，间隔至少 12 �
 
 - GLM 系**始终思考**：只有 `low/high/max`（发 none/minimal/medium/xhigh
   得 400「该模型始终思考」）
-- GPT 系拒 `max`，只到 `xhigh`
 - kimi-k3.1-pro / -highspeed 七档全可用（2026-10-25 逐档实测，`none` 为 0
   reasoning tokens）；旧 Kimi-K3 同样全档
 - DeepSeek-V4.1-Flash-1017 声明 `none/minimal/low/medium/high/xhigh/max`
   （2026-10-20 实测：`none` 产生 0 reasoning tokens，是真正的"不思考"档；
   非法值返回 400，说明上游校验枚举）
-- MiniMax-M3 只有 `high`；M2.x 无档位细分
 
 ## 价格
 
 `models.mjs` 里带 CNY/Mtok 价格（输入/输出/缓存命中），来自 SophNet
-公开定价 API（2026-10-12 快照）。gpt/claude/gemini 系 SophNet 按 USD
-计价，表里是 ×7.1 折算的估计值。
+公开定价 API（2026-10-12 快照）。DeepSeek 两条备用通道沿用主力估值，
+以 `est: true` 标注。
 
 ## 未收录的模型
 
@@ -180,12 +162,19 @@ SophNet 上新模型后，往 `models.mjs` 的 `MODELS` 表加一行即可。
 
 ## 已知边界
 
-- gemini wire 的根地址（`.../open-apis/google`）未实测，Gemini 系模型
-  标注为尽力支持；claude 系 anthropic wire 已实测可用。
 - SophNet `/responses` 的档位可用性按上游副本有概率性抖动（实测同一
   档位 0–5/5 通过），档位表是 5/5 通过的保守集合。
 
 ## 变更记录
+
+### 0.2.0（rls）
+
+- **只保留国产模型**：删除全部 GPT-6.x 与 Claude 5.x 通道（13 个），
+  目录从 20 个减到 7 个（DeepSeek ×3、GLM ×2、Kimi ×2）。
+- 随之移除 Anthropic wire 相关代码（`ANTHROPIC_BASE`、adaptive thinking
+  重写、`context_management` 剥离），loader 只处理 Responses；Kimi 仍走
+  chat wire。
+- 包描述改为国产模型口径。
 
 ### 0.1.1
 

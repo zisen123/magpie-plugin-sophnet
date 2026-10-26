@@ -7,7 +7,7 @@ const { hardenResponses, MODELS, byId } = _internal
 import { sendMessageSchema, agentSchema } from "./schema-fixtures.mjs"
 
 const toolBody = (parameters, extra = {}) => JSON.stringify({
-  model: "gpt-6.1-sol",
+  model: "DeepSeek-V4.1-Flash-1017",
   tools: [{ type: "function", name: "Probe", parameters, ...extra }],
 })
 
@@ -105,35 +105,6 @@ describe("loader schema hardening", () => {
   })
 })
 
-describe("loader Anthropic regression", () => {
-  test("Request retains adaptive thinking, context stripping and cancellation", async () => {
-    const plugin = await (await import("./index.mjs")).SophnetAuthPlugin()
-    const loader = await plugin.auth.loader(async () => ({ type: "api", key: "test-key" }))
-    const realFetch = globalThis.fetch
-    let call
-    globalThis.fetch = async (url, init) => {
-      call = { url, init }
-      return new Response("ok")
-    }
-    try {
-      const request = new Request("https://www.sophnet.com/api/open-apis/v1/messages", {
-        method: "POST",
-        body: JSON.stringify({ model: "claude-sonnet-5-5-aws", thinking: { type: "enabled", budget_tokens: 8192 }, context_management: { edits: [] } }),
-        signal: new AbortController().signal,
-      })
-      await loader.fetch(request)
-      const body = JSON.parse(call.init.body)
-      expect(call.url).toBe("https://www.sophnet.com/api/open-apis/anthropic/v1/messages")
-      expect(body.thinking.type).toBe("adaptive")
-      expect(body.output_config.effort).toBe("medium")
-      expect(body.context_management).toBeUndefined()
-      expect(call.init.signal).toBe(request.signal)
-    } finally {
-      globalThis.fetch = realFetch
-    }
-  })
-})
-
 describe("loader other endpoints", () => {
   test("binary Request bodies stay intact outside the JSON protocol endpoints", async () => {
     const plugin = await (await import("./index.mjs")).SophnetAuthPlugin()
@@ -169,36 +140,31 @@ describe("catalog", () => {
     }
   })
 
-  test("claude models are NOT on the responses wire (20004 upstream)", () => {
-    for (const m of MODELS) {
-      if (/^claude-/.test(m.id)) {
-        expect(m.wire === "responses").toBe(false)
-      }
+  test("catalog is 7 domestic channels and no foreign models", () => {
+    expect(MODELS.length).toBe(7)
+    for (const id of [
+      "DeepSeek-V4.1-Flash-1017",
+      "DeepSeek-V4.1-Flash-1017-global",
+      "DeepSeek-Flash-1017",
+      "GLM-5.3",
+      "glm-5.3-flashx",
+      "kimi-k3.1-pro",
+      "kimi-k3.1-pro-highspeed",
+    ]) {
+      expect(byId.get(id)).toBeDefined()
+      expect(configModels()[id].id).toBe(id)
     }
-  })
-
-  test("catalog is 20 models with Flash and Claude fallback channels", () => {
-    expect(MODELS.length).toBe(20)
-    expect(byId.get("gpt-6-luna")).toMatchObject({
-      name: "GPT-6 Luna", wire: "responses", context: 1050000, output: 128000, images: true,
-    })
-    for (const id of ["claude-opus-4-8-aws", "qwen3.8-flash", "qwen3.8-max-0902", "glm-5.3-flash"]) {
+    for (const id of [
+      "gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna",
+      "claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1",
+    ]) {
       expect(byId.get(id)).toBeUndefined()
     }
-    expect(byId.get("GLM-5.3")).toBeDefined()
-    expect(byId.get("glm-5.3-flashx")).toBeDefined()
-    expect(byId.get("gpt-5.5")).toBeUndefined()
-    expect(byId.get("gpt-5.4")).toBeUndefined()
-    expect(byId.get("gpt-5.3-codex")).toBeUndefined()
-    expect(byId.get("DeepSeek-V4-Pro-0813")).toBeUndefined()
-    expect(byId.get("DeepSeek-Flash")).toBeUndefined()
-    expect(byId.get("DeepSeek-V4-Flash-Vision-Exp")).toBeUndefined()
     for (const id of ["DeepSeek-Flash-1017", "DeepSeek-V4.1-Flash-1017-global"]) {
       expect(byId.get(id)).toMatchObject({
         wire: "responses", context: 1000000, est: true,
       })
       expect(byId.get(id).efforts).toContain("low")
-      expect(configModels()[id].id).toBe(id)
     }
   })
 
@@ -216,25 +182,6 @@ describe("catalog", () => {
     expect(Object.keys(m.variants)).toEqual(["none", "minimal", "low", "medium", "high", "xhigh", "max"])
     expect(m.limit).toEqual({ context: 1000000, output: 384000 })
     expect(m.cost.note).toBeUndefined()
-  })
-
-  test("Claude catalog keeps channel fallbacks for each family on Messages", () => {
-    const claude = MODELS.filter((m) => m.id.startsWith("claude-"))
-    const families = ["claude-fable-5-1", "claude-sonnet-5-5", "claude-opus-5-5"]
-    const channels = (id) => (id === "claude-fable-5-1"
-      ? [id + "-cc", id, id + "-aws", id + "-awsb"]
-      : [id + "-cc", id, id + "-aws"])
-    expect(claude.map((m) => m.id)).toEqual(families.flatMap(channels))
-    for (const m of claude) {
-      expect(m.wire).toBe("anthropic")
-      expect(m.npm).toBe("@ai-sdk/anthropic")
-      expect(m.context).toBe(1000000)
-      expect(m.output).toBe(128000)
-      expect(m.efforts).toEqual(["low", "medium", "high", "xhigh", "max"])
-      if (m.id.endsWith("-cc")) expect(m.name).toContain("(CC)")
-      if (m.id.endsWith("-awsb")) expect(m.name).toContain("(AWS B)")
-      else if (m.id.endsWith("-aws")) expect(m.name).toContain("(AWS)")
-    }
   })
 
   test("kimi-k3.1-pro variants are text-only chat-wire models", () => {
@@ -259,15 +206,9 @@ describe("catalog", () => {
     }
   })
 
-  test("gpt-5.x never offer max (upstream refuses it); gpt-6.x probed OK on sophnet", () => {
-    for (const id of ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna"]) {
-      expect(byId.get(id).efforts).toContain("max")
-    }
-  })
-
   test("byId resolves", () => {
-    expect(byId.get("gpt-6.1-sol").wire).toBe("responses")
-    expect(byId.get("claude-opus-5-5-cc").wire).toBe("anthropic")
+    expect(byId.get("DeepSeek-V4.1-Flash-1017").wire).toBe("responses")
+    expect(byId.get("kimi-k3.1-pro").wire).toBe("chat")
   })
 })
 
@@ -277,45 +218,7 @@ describe("hardenResponses summary strip", () => {
     for (const model of ["Kimi-K3", "kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"]) {
       expect(JSON.parse(hardenResponses(mk(model))).reasoning.summary).toBeUndefined()
     }
-    expect(JSON.parse(hardenResponses(mk("gpt-5.5"))).reasoning.summary).toBe("auto")
-  })
-})
-
-describe("rewriteAdaptiveThinking", () => {
-  const mk = (model) => JSON.stringify({ model, max_tokens: 4000, thinking: { type: "enabled", budget_tokens: 8192 }, messages: [] })
-  test("claude >= 4.6: enabled+budget -> adaptive + output_config.effort", () => {
-    for (const model of ["claude-opus-5-5", "claude-opus-5-5-aws", "claude-fable-5-1-aws", "claude-sonnet-5-5-cc"]) {
-      const out = JSON.parse(_internal.rewriteAdaptiveThinking(mk(model)))
-      expect(out.thinking.type).toBe("adaptive")
-      expect(out.output_config.effort).toBe("medium")
-    }
-  })
-  test("budget ladder maps to effort tiers", () => {
-    expect(JSON.parse(_internal.rewriteAdaptiveThinking(JSON.stringify({ model: "claude-opus-5-5", thinking: { type: "enabled", budget_tokens: 1024 } }))).output_config.effort).toBe("low")
-    expect(JSON.parse(_internal.rewriteAdaptiveThinking(JSON.stringify({ model: "claude-opus-5-5", thinking: { type: "enabled", budget_tokens: 32000 } }))).output_config.effort).toBe("max")
-  })
-  test("older claude and non-claude bodies untouched", () => {
-    expect(JSON.parse(_internal.rewriteAdaptiveThinking(mk("claude-haiku-4-5-20251001"))).thinking.type).toBe("enabled")
-    expect(JSON.parse(_internal.rewriteAdaptiveThinking(mk("claude-opus-4-5-20251101"))).thinking.type).toBe("enabled")
-    expect(JSON.parse(_internal.rewriteAdaptiveThinking(mk("gpt-5.5"))).thinking.type).toBe("enabled")
-  })
-  test("non-enabled thinking passes through", () => {
-    const b = JSON.stringify({ model: "claude-opus-5-5", thinking: { type: "adaptive" } })
-    expect(_internal.rewriteAdaptiveThinking(b)).toBe(b)
-  })
-})
-
-describe("stripContextManagement", () => {
-  test("dropped for AWS ids, preserved for bare and all three CC channels", () => {
-    const mk = (model) => JSON.stringify({ model, context_management: { edits: [] }, messages: [] })
-    for (const model of ["claude-opus-5-5-aws", "claude-fable-5-1-awsb"]) {
-      // (-cc accepts context_management natively, measured 2026-10-13)
-      expect(JSON.parse(_internal.stripContextManagement(mk(model))).context_management).toBeUndefined()
-    }
-    expect(JSON.parse(_internal.stripContextManagement(mk("claude-opus-5-5"))).context_management).toEqual({ edits: [] })
-    for (const model of ["claude-fable-5-1-cc", "claude-sonnet-5-5-cc", "claude-opus-5-5-cc"]) {
-      expect(JSON.parse(_internal.stripContextManagement(mk(model))).context_management).toEqual({ edits: [] })
-    }
+    expect(JSON.parse(hardenResponses(mk("DeepSeek-V4.1-Flash-1017"))).reasoning.summary).toBe("auto")
   })
 })
 

@@ -1,10 +1,9 @@
-// SophNet 精选模型目录（20 个模型）。旧渠道数据来自本机实测表，
-// 新渠道的协议与能力按精确 ID 单独验证；暂用估值不能视为实测上限。
+// SophNet 国产模型目录（7 个通道）。渠道数据来自本机实测表，协议与能力
+// 按精确 ID 单独验证；暂用估值不能视为实测上限。
 //
 // Prices CNY per M token (input / output / cache-read), 2026-09-16 snapshot
-// cross-checked against the SophNet console service/all API. The four
-// USD-billed models (gpt-5.5, gpt-5.4, gpt-5.3-codex, claude-opus-4-8) are
-// USD × 7.1 estimates (est: true).
+// cross-checked against the SophNet console service/all API. Channels whose
+// pricing was projected are marked (est: true).
 //
 // Effort tiers are the 2026-09-13 measured sets (5 samples per tier,
 // ~/sophnet-model-table data.json effort3): the "supported" list per model
@@ -14,7 +13,6 @@ const R = (tiers) => ({ npm: "@ai-sdk/openai", wire: "responses", efforts: tiers
 
 const E_ALL = ["minimal", "low", "medium", "high", "xhigh", "max"]
 const E_GLM = ["low", "high", "max"] // GLM always thinks: other tiers are 400 (1210)
-const E_GPT = ["low", "medium", "high", "xhigh"] // OpenAI models refuse "max"
 
 // id, name, context, output, cost [in, out, cached] CNY/M, est, images
 const MODELS = [
@@ -38,49 +36,19 @@ const MODELS = [
   // 实测 none..max 七档全部 200，none 档 0 reasoning tokens。
   ["kimi-k3.1-pro", "Kimi K3.1 Pro", 1000000, 48000, [13, 68, 1.3], false, false],
   ["kimi-k3.1-pro-highspeed", "Kimi K3.1 Pro Highspeed", 1000000, 48000, [26, 136, 1.3], false, false],
-
-  // ---- next-gen (added 2026-10-12, wire-verified; prices = USD × 7.1 est) --
-  // gpt-6.x on /responses (200 verified); claude-5.x on Anthropic Messages
-  // (200 verified; /responses refuses them with 20004). gpt-6.1-sol tiers
-  // probed on sophnet: low/medium/high/xhigh/max pass, minimal 400s.
-  ["gpt-6.1-sol", "GPT-6.1 Sol", 1050000, 128000, [14.2, 71, 1.42], true, true],
-  ["gpt-6-astra", "GPT-6 Astra", 1050000, 128000, [71, 355, 7.1], true, true],
-  // Luna limits and USD price from models.dev; SophNet public pricing omits it.
-  ["gpt-6-luna", "GPT-6 Luna", 1050000, 128000, [0.71, 3.55, 0.071], true, true],
-  // 每个 Claude 家族独立组成 -cc → bare → -aws（Fable 另含 -awsb）渠道组；
-  // 精确 ID 来自授权目录。价格按 2026-10-25 控制台 service/all 的 USD 标价
-  // ×7.1 折算（est: true）：Fable 10/50/0.25、Sonnet 2/10/0.2、Opus 4/20/0.2。
-  // 缓存命中价与旧估值不同，已按控制台更正。AWS 的 context_management 由
-  // loader 剥离；基础短请求不代表长上下文、完整档位和工具续轮已通过。
-  ["claude-fable-5-1-cc", "Claude Fable 5.1 (CC)", 1000000, 128000, [71, 355, 1.775], true, true],
-  ["claude-fable-5-1", "Claude Fable 5.1", 1000000, 128000, [71, 355, 1.775], true, true],
-  ["claude-fable-5-1-aws", "Claude Fable 5.1 (AWS)", 1000000, 128000, [71, 355, 1.775], true, true],
-  ["claude-fable-5-1-awsb", "Claude Fable 5.1 (AWS B)", 1000000, 128000, [71, 355, 1.775], true, true],
-  ["claude-sonnet-5-5-cc", "Claude Sonnet 5.5 (CC)", 1000000, 128000, [14.2, 71, 1.42], true, true],
-  ["claude-sonnet-5-5", "Claude Sonnet 5.5", 1000000, 128000, [14.2, 71, 1.42], true, true],
-  ["claude-sonnet-5-5-aws", "Claude Sonnet 5.5 (AWS)", 1000000, 128000, [14.2, 71, 1.42], true, true],
-  ["claude-opus-5-5-cc", "Claude Opus 5.5 (CC)", 1000000, 128000, [28.4, 142, 1.42], true, true],
-  ["claude-opus-5-5", "Claude Opus 5.5", 1000000, 128000, [28.4, 142, 1.42], true, true],
-  ["claude-opus-5-5-aws", "Claude Opus 5.5 (AWS)", 1000000, 128000, [28.4, 142, 1.42], true, true],
 ].map(([id, name, context, output, cost, est, images]) => {
-  // wire per measured channel support: claude-* on Anthropic Messages
-  // (20004 MODEL_NOT_SUPPORT on /responses); Kimi 系（含 kimi-k3.1-pro /
+  // wire per measured channel support: Kimi 系（含 kimi-k3.1-pro /
   // -highspeed）on Chat Completions — 旧 Kimi-K3 的 /responses 流式中途截断，
   // 新 ID 虽实测 responses 完整，仍沿用 chat 保持同一生产路径；
   // DeepSeek-V4.1-Flash-1017 的 Responses 2026-10-20 复测通过
-  // （流式/图片/工具），与其余 GPT 系一样走 Responses。其余走 Responses。
-  const wire = id.startsWith("claude") ? "anthropic" : /^kimi/i.test(id) ? "chat" : "responses"
-  const npm = wire === "anthropic" ? "@ai-sdk/anthropic"
-    : wire === "chat" ? "@ai-sdk/openai-compatible"
-    : "@ai-sdk/openai"
+  // （流式/图片/工具）。其余走 Responses。
+  const wire = /^kimi/i.test(id) ? "chat" : "responses"
+  const npm = wire === "chat" ? "@ai-sdk/openai-compatible" : "@ai-sdk/openai"
   // V4.1 Flash: every tier passes SophNet's enum check, and none verified as
   // genuinely off (0 reasoning tokens) — unlike the retired Flash-1017, which
   // still thought ~1500 tokens at none.
   const efforts = id === "DeepSeek-V4.1-Flash-1017" || /^kimi/i.test(id) ? ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
     : id.startsWith("GLM") || id.startsWith("glm") ? E_GLM
-    : id === "gpt-6.1-sol" || id === "gpt-6-astra" || id === "gpt-6-luna" ? ["low", "medium", "high", "xhigh", "max"] // verified on SophNet
-    : id.startsWith("gpt-") ? E_GPT
-    : wire === "anthropic" ? ["low", "medium", "high", "xhigh", "max"]
     : E_ALL
   return { id, name, npm, wire, efforts, context, output, cost, est, images }
 })

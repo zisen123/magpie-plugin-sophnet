@@ -1,9 +1,8 @@
 // SophNet provider plugin for OpenCode and magpie.
 //
-// One API key (www.sophnet.com → Access Token), every model on the wire it
-// speaks: OpenAI-family models on /responses (or /chat/completions), Claude
-// models on Anthropic Messages, Gemini models on generateContent. magpie's
-// gateway translates whatever the agent sent into the model's own wire.
+// One API key (www.sophnet.com → Access Token), every domestic model on the
+// wire it speaks: DeepSeek / GLM on /responses, Kimi on /chat/completions.
+// magpie's gateway translates whatever the agent sent into the model's wire.
 //
 // The loader's fetch also hardens Responses requests for SophNet's gateway:
 // function tools use non-strict mode with their original JSON Schema. A
@@ -18,64 +17,12 @@ const BASE = "https://www.sophnet.com/api/open-apis/v1"
 // The account's balance sits beside the API root, not under /v1: the
 // projects query every SophNet console page reads it from.
 const BALANCE_URL = "https://www.sophnet.com/api/open-apis/projects/balance"
-const ANTHROPIC_BASE = "https://www.sophnet.com/api/open-apis/anthropic"
-const GEMINI_BASE = "https://www.sophnet.com/api/open-apis/google" // not measured; Gemini wire is best-effort
 
 const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v)
 
 // ---- Responses request hardening -------------------------------------------
 
 // hardenResponses rewrites a /responses request body for SophNet's gateway.
-// claudeVersion reads a claude model id's (major, minor): false when the id
-// isn't a Claude one. claude ids on sophnet: bare, -aws, -awsb, -cc.
-function claudeVersion(model) {
-  const m = /^claude-(?:fable|haiku|opus|sonnet)-(\d+)-(\d+)/.exec(String(model ?? ""))
-  if (!m) return false
-  return { major: Number(m[1]), minor: Number(m[2]) }
-}
-
-// effortForBudget maps a legacy thinking budget to an adaptive effort tier.
-function effortForBudget(budget) {
-  if (budget <= 2048) return "low"
-  if (budget <= 8192) return "medium"
-  if (budget <= 16384) return "high"
-  if (budget <= 24576) return "xhigh"
-  return "max"
-}
-
-// rewriteAdaptiveThinking: claude >= 4.6 on sophnet refuses the legacy
-// thinking block ("requires adaptive thinking; omit thinking or use
-// *.type=adaptive and output_config.effort"). CC still sends the legacy
-// form, and magpie's passthrough relays it untouched, so the plugin rewrites
-// it here: thinking.type=adaptive + output_config.effort from the budget.
-// stripContextManagement: sophnet's -aws / -awsb claude routes are
-// Bedrock-backed and refuse context_management (CC's context editing
-// feature) with a generic "Invalid request", while the bare and -cc ids
-// accept it (-cc is the Claude Code-tuned route; measured 2026-10-13).
-// The field is optional: dropped, the conversation runs without client-side
-// context editing.
-function stripContextManagement(text) {
-  let body
-  try { body = JSON.parse(text) } catch { return text }
-  if (!/-awsb?$/.test(String(body.model ?? ""))) return text
-  if (body.context_management === undefined) return text
-  delete body.context_management
-  return JSON.stringify(body)
-}
-
-function rewriteAdaptiveThinking(text) {
-  let body
-  try { body = JSON.parse(text) } catch { return text }
-  const th = body?.thinking
-  if (!isObj(th) || th.type !== "enabled") return text
-  const v = claudeVersion(body.model)
-  if (!v || v.major < 4 || (v.major === 4 && v.minor < 6)) return text
-  const budget = Number(th.budget_tokens) || 8192
-  body.thinking = { type: "adaptive", display: "summarized" }
-  body.output_config = { ...(isObj(body.output_config) ? body.output_config : {}), effort: effortForBudget(budget) }
-  return JSON.stringify(body)
-}
-
 function hardenResponses(text) {
   let body
   try { body = JSON.parse(text) } catch { return text }
@@ -104,8 +51,8 @@ function hardenResponses(text) {
     }
   }
   // SophNet's Go gateway strict-decodes reasoning per model and refuses
-  // "summary" on some (Kimi: json: unknown field "summary"); others (gpt)
-  // need it for reasoning display, so strip per model.
+  // "summary" on some (Kimi: json: unknown field "summary"), so strip per
+  // model.
   if (/^Kimi/i.test(String(body.model ?? "")) && isObj(body.reasoning) && "summary" in body.reasoning) {
     const { summary: _s, ...rest } = body.reasoning
     body.reasoning = rest
@@ -165,17 +112,8 @@ export const SophnetAuthPlugin = async () => ({
         headers.set("authorization", `Bearer ${key}`)
         headers.set("X-Sophnet-Source", "opencode-sophnet-auth")
 
-        // per-wire base: an Anthropic Messages request the AI SDK built
-        // against BASE is re-pointed at the Anthropic root. The SDK joins
-        // baseURL and its path loosely (a /v1 may appear twice), so the
-        // rewrite replaces the whole BASE prefix instead of splicing paths.
-        let out = url
-        const path = new URL(url).pathname
-        if (path.endsWith("/messages") && url.startsWith(BASE)) {
-          out = ANTHROPIC_BASE + "/v1/messages"
-        }
-        const wirePath = new URL(out).pathname
-        if ((wirePath.endsWith("/responses") || wirePath.endsWith("/messages")) && (body instanceof ArrayBuffer || ArrayBuffer.isView(body))) {
+        const wirePath = new URL(url).pathname
+        if (wirePath.endsWith("/responses") && (body instanceof ArrayBuffer || ArrayBuffer.isView(body))) {
           body = new TextDecoder().decode(body)
         }
 
@@ -183,13 +121,8 @@ export const SophnetAuthPlugin = async () => ({
           body = hardenResponses(body)
           headers.delete("content-length")
         }
-        if (typeof body === "string" && wirePath.endsWith("/messages")) {
-          let adapted = stripContextManagement(body)
-          adapted = rewriteAdaptiveThinking(adapted)
-          if (adapted !== body) { body = adapted; headers.delete("content-length") }
-        }
         const method = init?.method ?? (input instanceof Request ? input.method : "POST")
-        return fetch(out, { ...init, method, body, headers, signal: init?.signal ?? (input instanceof Request ? input.signal : undefined) })
+        return fetch(url, { ...init, method, body, headers, signal: init?.signal ?? (input instanceof Request ? input.signal : undefined) })
       }
 
       return { baseURL: BASE, apiKey: key, fetch: sophnetFetch }
@@ -236,4 +169,4 @@ export const SophnetAuthPlugin = async () => ({
   },
 })
 
-export const _internal = { hardenResponses, rewriteAdaptiveThinking, stripContextManagement, MODELS, byId }
+export const _internal = { hardenResponses, MODELS, byId }

@@ -1,7 +1,7 @@
 {
   "name": "opencode-sophnet-auth",
-  "version": "0.1.1",
-  "description": "SophNet provider plugin for OpenCode and magpie: a curated model catalog, each model on the wire it speaks (Responses / Chat Completions / Anthropic Messages)",
+  "version": "0.2.0",
+  "description": "SophNet provider plugin for OpenCode and magpie: 7 domestic model channels (DeepSeek / GLM / Kimi), each on the wire it speaks (Responses / Chat Completions)",
   "type": "module",
   "main": "./index.mjs",
   "files": [

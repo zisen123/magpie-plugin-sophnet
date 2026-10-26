@@ -6,17 +6,25 @@ magpie 与 OpenCode 两端的加载契约，不把密钥或对话内容带进包
 ## 这是什么
 
 `opencode-sophnet-auth`：SophNet（算能 AI 云）的 magpie / OpenCode
-provider 插件。一把 Access Token 接入 20 个精选模型通道，每个模型走它
-实际支持的协议：
+provider 插件。`rls` 分支只保留国产模型，一把 Access Token 接入 7 个
+通道（DeepSeek ×3、GLM ×2、Kimi ×2），每个模型走它实际支持的协议：
 
 | wire | npm | 端点 | 模型族 |
 |---|---|---|---|
-| `responses` | `@ai-sdk/openai` | `{BASE}/responses` | GPT-6.x、GLM、DeepSeek |
+| `responses` | `@ai-sdk/openai` | `{BASE}/responses` | DeepSeek、GLM |
 | `chat` | `@ai-sdk/openai-compatible` | `{BASE}/chat/completions` | kimi-k3.1-pro / -highspeed |
-| `anthropic` | `@ai-sdk/anthropic` | `{BASE}/anthropic/v1/messages` | claude-* |
 
-`BASE = https://www.sophnet.com/api/open-apis/v1`。Claude 在 `/responses`
-上确定性返回 20004 `MODEL_NOT_SUPPORT`，wire 分流是硬需求。
+`BASE = https://www.sophnet.com/api/open-apis/v1`。Kimi 走 chat 是因为
+旧 Kimi-K3 在 `/responses` 流式中途截断。GPT / Claude / Gemini 通道在
+rls 分支中不收录，相关代码也不保留。
+
+## 分支策略
+
+- `master` / 默认分支：完整目录（含国外模型）
+- `rls`：只保留国产模型，用于对外/npm 发布版。改动只在这个分支做，
+  不要用 master 直接覆盖。
+
+发布 rls 时用同一包名 `opencode-sophnet-auth`，版本按 semver 递增。
 
 ## 结构
 
@@ -60,12 +68,6 @@ README 的测试命令都标注了「仓库内运行」。
    `function_call_output` 的 `call_id`（避免切模型后 400）
 4. Kimi 系剥 `reasoning.summary`（SophNet Go 网关严格反序列化拒绝）
 
-Anthropic 出口（`stripContextManagement` / `rewriteAdaptiveThinking`）：
-
-- `-aws` / `-awsb` 渠道剥 `context_management`（Bedrock 后端不接受）
-- claude >= 4.6 的旧式 `thinking.enabled + budget_tokens` 改成
-  `thinking.adaptive + output_config.effort`
-
 这些是生产路径，改之前先跑 `bun test`，再按下方线上流程验收。
 
 ## 模型目录维护
@@ -79,7 +81,8 @@ Anthropic 出口（`stripContextManagement` / `rewriteAdaptiveThinking`）：
 - `wire` / `npm` / `efforts` 由 id 前缀推导，新增模型先确认它属于哪条
   wire，再决定要不要加特例
 - effort 档位只能是实测通过的集合：GLM 仅 low/high/max（始终思考），
-  gpt-5.x 无 max，gpt-6.x 有 max 无 minimal，claude-5.x low..max
+  Kimi 与 DeepSeek-V4.1-Flash-1017 为 none..max 七档，其余 DeepSeek
+  通道为 minimal..max
 - `est: true` 表示 USD × 7.1 估值，不要写成实测
 - 价格单位是 **CNY / 百万 token**；峰谷价写在注释里
 - `.test.mjs` 的目录不变式会校验 wire↔npm、Claude 不走 responses、
