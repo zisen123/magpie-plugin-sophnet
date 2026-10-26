@@ -6,8 +6,9 @@ magpie 与 OpenCode 两端的加载契约，不把密钥或对话内容带进包
 ## 这是什么
 
 `opencode-sophnet-auth`：SophNet（算能 AI 云）的 magpie / OpenCode
-provider 插件。`rls` 分支只保留国产模型，一把 Access Token 接入 7 个
-通道（DeepSeek ×3、GLM ×2、Kimi ×2），每个模型走它实际支持的协议：
+provider 插件。本分支（master）是对外脱敏版，只保留国产模型：一把
+Access Token 接入 7 个通道（DeepSeek ×3、GLM ×2、Kimi ×2），每个模型
+走它实际支持的协议：
 
 | wire | npm | 端点 | 模型族 |
 |---|---|---|---|
@@ -16,15 +17,22 @@ provider 插件。`rls` 分支只保留国产模型，一把 Access Token 接入
 
 `BASE = https://www.sophnet.com/api/open-apis/v1`。Kimi 走 chat 是因为
 旧 Kimi-K3 在 `/responses` 流式中途截断。GPT / Claude / Gemini 通道在
-rls 分支中不收录，相关代码也不保留。
+master 中不收录，相关代码也不保留。
 
 ## 分支策略
 
-- `master` / 默认分支：完整目录（含国外模型）
-- `rls`：只保留国产模型，用于对外/npm 发布版。改动只在这个分支做，
-  不要用 master 直接覆盖。
+- `master`：**对外脱敏版**，只保留国产模型。GitHub 默认分支，也是 npm
+  发布版。
+- `full`：**本地完整版**，含 GPT / Claude 等国外模型。本机 magpie 默认
+  加载这个分支的工作目录。
+- `rls`：与 master 同内容的别名分支，保留用于旧引用，不再单独维护。
 
-发布 rls 时用同一包名 `opencode-sophnet-auth`，版本按 semver 递增。
+改动规则：
+
+1. 新增/修改模型或协议逻辑，先在 `full` 上验证、跑测试、本机实测；
+2. 确认后把同样的改动同步到 `master`，并按脱敏口径去掉国外模型；
+3. 发布：`git checkout master` → bump 版本 → `npm publish` → Staged Approve；
+4. 不要让 `full` 直接覆盖 `master`，也不要把 `master` merge 回 `full`。
 
 ## 结构
 

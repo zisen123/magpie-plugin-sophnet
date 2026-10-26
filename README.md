@@ -167,7 +167,7 @@ SophNet 上新模型后，往 `models.mjs` 的 `MODELS` 表加一行即可。
 
 ## 变更记录
 
-### 0.2.0（rls）
+### 0.2.0（master 脱敏版）
 
 - **只保留国产模型**：删除全部 GPT-6.x 与 Claude 5.x 通道（13 个），
   目录从 20 个减到 7 个（DeepSeek ×3、GLM ×2、Kimi ×2）。
